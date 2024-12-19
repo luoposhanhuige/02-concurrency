@@ -10,6 +10,8 @@ struct Msg {
     idx: usize,
     value: usize,
 }
+// what is usize?
+// usize is an unsigned integer type that is used to represent the size of a pointer on the target platform. It is used to store memory addresses and is guaranteed to be the same size as a pointer. The usize type is architecture-dependent, meaning that it will be 32 bits on a 32-bit architecture and 64 bits on a 64-bit architecture. This makes it useful for working with memory addresses and sizes in a platform-independent way.
 
 fn main() -> Result<()> {
     let (tx, rx) = mpsc::channel();
@@ -30,6 +32,10 @@ fn main() -> Result<()> {
         for msg in rx {
             println!("Received: {:?}", msg);
         }
+        // the for loop will exit when the sender is dropped, and the receiver will receive a None value.
+        // how could possible for compiler to know that the sender is dropped?
+        // The drop function is called on the original sender tx, which will release the ownership of tx and cause the receiver rx to receive a None value. The for loop will exit when the receiver receives a None value, which will cause the consumer thread to exit.
+        // the for loop will run forever until the sender is dropped.
         println!("Consumer exiting"); // 主要与上述 drop(tx) 响应，当 tx 被 drop 时，rx 会收到一个 None，所以，当 rx 收到 None 时，就会退出循环。
         "end" // 也可以是一个数字什么的，诸如888。作为一个返回值，给到 consumer.join()。
     });
@@ -42,10 +48,14 @@ fn main() -> Result<()> {
     // 如果不使用 join()，那么主线程main()会直接退出，不会等待其他线程执行完，导致其他线程也会退出。所以，必须使用 join() 来等待其他线程结束。
     let secret = consumer
         .join()
-        .map_err(|e| anyhow::anyhow!("Thread join error: {:?}", e))?; //因为 e 实现了 debug，所以，用 {:?} 输出。这里是用 anyhow::anyhow! 宏来创建一个 anyhow::Error 类型的错误。
-                                                                      // 这里是一个技巧，当我们没办法通过 "?" 把一种错误转换为另一种错误时，我们可以用 map_err 函数来转换错误类型。
+        .map_err(|e| anyhow::anyhow!("Thread join error: {:?}", e))?;
+    // JoinHandle 类型的实例有一个 join 方法，它会等待线程结束，并返回线程的返回值。
+    // map_err 函数是一个 Result 类型的方法，它会把错误类型转换为另一种错误类型。
+    //因为 e 实现了 debug，所以，用 {:?} 输出。这里是用 anyhow::anyhow! 宏来创建一个 anyhow::Error 类型的错误。
+    //这里是一个技巧，当我们没办法通过 "?" 把一种错误转换为另一种错误时，我们可以用 map_err 函数来转换错误类型。
 
-    // consumer.join()只是等待线程结束，但是不会返回线程的返回值，所以，如果我们想要获取线程的返回值，我们可以使用线程的返回值，也就是 JoinHandle 类型的实例。
+    // consumer.join()只是等待线程结束，但是不会返回线程的返回值，
+    // 所以，如果我们想要获取线程的返回值，我们可以使用线程的返回值，也就是 JoinHandle 类型的实例。
     // q: consumer 的线程中，对 rx 进行了迭代，但没有对 tx 进行任何处理，但 consumer.join() 会等待 tx 的线程结束，这是为什么？
     // a: 因为 tx 是一个 Sender 类型的实例，它是一个生产者，而 rx 是一个 Receiver 类型的实例，它是一个消费者。tx 和 rx 是一对一的关系，所以，当 tx 的线程结束时，rx 的线程也会结束。所以，consumer.join() 会等待 tx 的线程结束。
 
@@ -68,11 +78,15 @@ fn producer(idx: usize, tx: mpsc::Sender<Msg>) -> Result<()> {
                                         //the thread will sleep for 1000 milliseconds毫秒, which is equivalent to 1 second.
         let sleep_time = rand::random::<u8>() as u64 * 10;
         thread::sleep(Duration::from_millis(sleep_time));
+
+        // 以上代码不会自动退出loop，如果要强行退出，需要一个退出条件。
         // random exit the producer
         if rand::random::<u8>() % 5 == 0 {
             println!("Producer {} exiting", idx);
             // break; // 因为要退出循环，所以，需要一个返回值，这里只是 break，就是报错。
             return Ok(()); // 或者在 loop 之后，返回一个 Ok(())，表示正常退出。
+                           // what is going on after return Ok(()); ?
+                           // The return statement will exit the loop and the function, so the thread will exit. The return value of the function is Ok(()), which is a Result type with an Ok variant that contains a unit value (). The unit value is a special value in Rust that is used when there is no meaningful value to return. In this case, we are returning Ok(()) to indicate that the thread exited normally.
         }
     }
 }
