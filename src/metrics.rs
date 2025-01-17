@@ -3,7 +3,8 @@
 use anyhow::{anyhow, Result};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    fmt,
+    sync::{Arc, RwLock}, // 用 RwLock 替换 Mutex，后者不区分 read 和 write，前者区分 read 和 write
 };
 
 // Arc (Atomic Reference Counting):
@@ -26,6 +27,7 @@ use std::{
 // This pattern is commonly used in Rust for concurrent programming scenarios where shared mutable state is required.
 
 // Arc<Mutex<...>> is a common pattern in Rust for sharing data across threads.
+
 // metrics.clone()
 // Arc (Atomic Reference Counting):
 
@@ -37,13 +39,13 @@ use std::{
 // This prevents data races and ensures safe concurrent access to the shared data.
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    data: Arc<Mutex<HashMap<String, i64>>>,
+    data: Arc<RwLock<HashMap<String, i64>>>,
 }
 
 impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
-            data: Arc::new(Mutex::new(HashMap::new())),
+            data: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -57,7 +59,8 @@ impl Metrics {
 
     // inc, 顾名思义，就是增加某个 key 对应的计数器的值
     pub fn inc(&self, key: impl Into<String>) -> Result<()> {
-        let mut data = self.data.lock().map_err(|e| anyhow!(e.to_string()))?;
+        // let mut data = self.data.lock().map_err(|e| anyhow!(e.to_string()))?; // MutexGuard<HashMap<String, i64>>
+        let mut data = self.data.write().map_err(|e| anyhow!(e.to_string()))?; // RwLock 区分 read 和 write
         let count = data.entry(key.into()).or_insert(0); // returns a mutable reference to the value
         *count += 1;
         Ok(())
@@ -87,11 +90,12 @@ impl Metrics {
     // The clone method is called on the MutexGuard<HashMap<String, i64>>.
     // The MutexGuard implements Deref, so calling clone on it effectively calls clone on the underlying HashMap<String, i64>.
 
-    // 把整个 Metrics 的数据结构 clone 一份，返回给调用者
+    // 把整个 Metrics 的数据结构 clone 一份，返回给调用者，
+    // 这个跟 metircs.clone() 是不一样的，metrics.clone() 是返回一个 Metrics 的副本，而这个是返回 Metrics 内部的数据结构的副本
     pub fn snapshot(&self) -> Result<HashMap<String, i64>> {
         Ok(self
             .data
-            .lock()
+            .read()
             .map_err(|e| anyhow!(e.to_string()))?
             .clone())
     }
@@ -100,5 +104,15 @@ impl Metrics {
 impl Default for Metrics {
     fn default() -> Self {
         Self::new()
+    }
+}
+// 与 metrics.snapshot 不同，前者用到 .clone()，后者没有用到
+impl fmt::Display for Metrics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let data = self.data.read().map_err(|_e| fmt::Error)?;
+        for (key, value) in data.iter() {
+            writeln!(f, "{}: {}", key, value)?;
+        }
+        Ok(())
     }
 }

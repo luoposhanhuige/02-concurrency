@@ -21,11 +21,22 @@ fn main() -> Result<()> {
 
     loop {
         thread::sleep(Duration::from_secs(2));
-        println!("{:?}", metrics.snapshot());
+        // println!("{:?}", metrics.snapshot());
+        println!("{}", metrics); // 需要 impl Display
+                                 // 打印结果：
+                                 // req.page.4: 27
+                                 // req.page.1: 32
+                                 // call.thread.worker.1: 5
+                                 // req.page.2: 30
+                                 // call.thread.worker.0: 8
+                                 // req.page.3: 30
     }
 
     // Ok(())
 }
+
+// thread::spawn(move || {loop {}}); // creates a new thread and runs the closure in it
+// 因为 loop 返回的是一个 unit 类型，为了让编译器知道这个闭包的返回值是 Result，需要在 loop {} 外面在套一个 {}，然后在里面加上 Ok::<_, anyhow::Error>(())，虽然这个 Ok::<_, anyhow::Error>(()) 永远不会执行到，因为 loop 是无限循环，但是编译器会认为这个闭包的返回值是 Result。
 
 fn task_worker(idx: usize, metrics: Metrics) -> Result<()> {
     thread::spawn(move || {
