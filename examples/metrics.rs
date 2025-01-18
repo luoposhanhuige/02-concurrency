@@ -9,7 +9,8 @@ const M: usize = 4;
 fn main() -> Result<()> {
     let metrics = Metrics::new();
 
-    println!("{:?}", metrics.snapshot()); // prints the data wrapped in the Arc<Mutex<HashMap<String, i64>>> which is an empty HashMap
+    // println!("{:?}", metrics.snapshot()); // prints the data wrapped in the Arc<Mutex<HashMap<String, i64>>> which is an empty HashMap
+    println!("{}", metrics); // DashMap is a concurrent hashmap that can be shared across threads
 
     for idx in 0..N {
         task_worker(idx, metrics.clone())?; // deep copy, Metrics{data: Arc::clone(&metrics.data)}

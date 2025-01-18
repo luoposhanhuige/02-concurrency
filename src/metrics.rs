@@ -1,11 +1,20 @@
 // metrics data structure
 // functionality: inc/dec/snapshot
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::{
-    collections::HashMap,
+    // collections::HashMap, // 用 dashmap 代替 HashMap
     fmt,
-    sync::{Arc, RwLock}, // 用 RwLock 替换 Mutex，后者不区分 read 和 write，前者区分 read 和 write
+    // sync::{Arc, RwLock}, // 用 RwLock 替换 Mutex，后者不区分 read 和 write，前者区分 read 和 write
+    sync::Arc,
 };
+
+use dashmap::DashMap;
+
+// 本例中，
+// 如果你的代码中的数据是 HashMap，又是在多线程中共享，那么你可以考虑使用 DashMap 来替换 HashMap。
+// 第一步，Mutex<HashMap<String, i64>> 被替换成了 RwLock<DashMap<String, i64>>。
+// 第二步，用 DashMap 替换 HashMap，因为 DashMap 的定义中，对 RwLock<HashMap<K, V>> 进行了封装，所以不再需要手动加锁解锁。
+// DashMap 是一个线程安全的 HashMap，它允许多个线程同时读取和写入数据。
 
 // Arc (Atomic Reference Counting):
 
@@ -37,15 +46,30 @@ use std::{
 
 // Mutex is a synchronization primitive that ensures only one thread can access the data at a time.
 // This prevents data races and ensures safe concurrent access to the shared data.
+
+// #[derive(Debug, Clone)]
+// pub struct Metrics {
+//    // data: Arc<Mutex<HashMap<String, i64>>>,
+//     data: Arc<RwLock<DashMap<String, i64>>>,
+// }
+
+// pub struct DashMap<K, V, S = RandomState> {
+//     shift: usize,
+//     shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
+//     hasher: S,
+// }
+
+// 参考上述 DashMap 的定义
+// 已经对 RwLock<HashMap<K, V>> 进行了封装，所以只需要保留外层再封装一层 Arc
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    data: Arc<RwLock<HashMap<String, i64>>>,
+    data: Arc<DashMap<String, i64>>,
 }
 
 impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
-            data: Arc::new(RwLock::new(HashMap::new())),
+            data: Arc::new(DashMap::new()),
         }
     }
 
@@ -60,9 +84,10 @@ impl Metrics {
     // inc, 顾名思义，就是增加某个 key 对应的计数器的值
     pub fn inc(&self, key: impl Into<String>) -> Result<()> {
         // let mut data = self.data.lock().map_err(|e| anyhow!(e.to_string()))?; // MutexGuard<HashMap<String, i64>>
-        let mut data = self.data.write().map_err(|e| anyhow!(e.to_string()))?; // RwLock 区分 read 和 write
-        let count = data.entry(key.into()).or_insert(0); // returns a mutable reference to the value
-        *count += 1;
+        // let mut data = self.data.write().map_err(|e| anyhow!(e.to_string()))?; // RwLock 区分 read 和 write
+        // let counter = data.entry(key.into()).or_insert(0);
+        let mut counter = self.data.entry(key.into()).or_insert(0); // 所有跟 data 和 锁 相关的操作都被封装到了 DashMap 里面
+        *counter += 1;
         Ok(())
     }
 
@@ -92,13 +117,15 @@ impl Metrics {
 
     // 把整个 Metrics 的数据结构 clone 一份，返回给调用者，
     // 这个跟 metircs.clone() 是不一样的，metrics.clone() 是返回一个 Metrics 的副本，而这个是返回 Metrics 内部的数据结构的副本
-    pub fn snapshot(&self) -> Result<HashMap<String, i64>> {
-        Ok(self
-            .data
-            .read()
-            .map_err(|e| anyhow!(e.to_string()))?
-            .clone())
-    }
+
+    // DashMap 不再需要 snapshot 方法，因为它对读写操作进行了封装，所以不需要再手动 clone 一份数据结构返回给调用者
+    // pub fn snapshot(&self) -> Result<HashMap<String, i64>> {
+    //     Ok(self
+    //         .data
+    //         .read()
+    //         .map_err(|e| anyhow!(e.to_string()))?
+    //         .clone())
+    // }
 }
 
 impl Default for Metrics {
@@ -109,9 +136,8 @@ impl Default for Metrics {
 // 与 metrics.snapshot 不同，前者用到 .clone()，后者没有用到
 impl fmt::Display for Metrics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let data = self.data.read().map_err(|_e| fmt::Error)?;
-        for (key, value) in data.iter() {
-            writeln!(f, "{}: {}", key, value)?;
+        for entry in self.data.iter() {
+            writeln!(f, "{}: {}", entry.key(), entry.value())?;
         }
         Ok(())
     }
