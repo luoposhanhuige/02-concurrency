@@ -1,3 +1,4 @@
+// cmap: concurrent map
 // metrics data structure
 // functionality: inc/dec/snapshot
 use anyhow::Result;
@@ -62,13 +63,15 @@ use dashmap::DashMap;
 // 参考上述 DashMap 的定义
 // 已经对 RwLock<HashMap<K, V>> 进行了封装，所以只需要保留外层再封装一层 Arc
 #[derive(Debug, Clone)]
-pub struct Metrics {
+pub struct CmapMetrics {
     data: Arc<DashMap<String, i64>>,
 }
+// Suitable for scenarios where the set of keys is dynamic and can change at runtime.
+// Example: A cache where the keys are dynamically generated strings, and the values are accessed and modified by multiple threads.
 
-impl Metrics {
-    pub fn new() -> Metrics {
-        Metrics {
+impl CmapMetrics {
+    pub fn new() -> CmapMetrics {
+        CmapMetrics {
             data: Arc::new(DashMap::new()),
         }
     }
@@ -128,13 +131,13 @@ impl Metrics {
     // }
 }
 
-impl Default for Metrics {
+impl Default for CmapMetrics {
     fn default() -> Self {
         Self::new()
     }
 }
 // 与 metrics.snapshot 不同，前者用到 .clone()，后者没有用到
-impl fmt::Display for Metrics {
+impl fmt::Display for CmapMetrics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for entry in self.data.iter() {
             writeln!(f, "{}: {}", entry.key(), entry.value())?;

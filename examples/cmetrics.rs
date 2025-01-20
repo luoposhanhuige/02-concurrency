@@ -1,5 +1,5 @@
 use anyhow::Result;
-use concurrency::Metrics;
+use concurrency::CmapMetrics;
 use rand::Rng;
 use std::{thread, time::Duration};
 
@@ -7,7 +7,7 @@ const N: usize = 2;
 const M: usize = 4;
 
 fn main() -> Result<()> {
-    let metrics = Metrics::new();
+    let metrics = CmapMetrics::new();
 
     // println!("{:?}", metrics.snapshot()); // prints the data wrapped in the Arc<Mutex<HashMap<String, i64>>> which is an empty HashMap
     println!("{}", metrics); // DashMap is a concurrent hashmap that can be shared across threads
@@ -39,7 +39,7 @@ fn main() -> Result<()> {
 // thread::spawn(move || {loop {}}); // creates a new thread and runs the closure in it
 // 因为 loop 返回的是一个 unit 类型，为了让编译器知道这个闭包的返回值是 Result，需要在 loop {} 外面在套一个 {}，然后在里面加上 Ok::<_, anyhow::Error>(())，虽然这个 Ok::<_, anyhow::Error>(()) 永远不会执行到，因为 loop 是无限循环，但是编译器会认为这个闭包的返回值是 Result。
 
-fn task_worker(idx: usize, metrics: Metrics) -> Result<()> {
+fn task_worker(idx: usize, metrics: CmapMetrics) -> Result<()> {
     thread::spawn(move || {
         loop {
             // do long term stuff
@@ -57,7 +57,7 @@ fn task_worker(idx: usize, metrics: Metrics) -> Result<()> {
     Ok(())
 }
 
-fn request_worker(metrics: Metrics) -> Result<()> {
+fn request_worker(metrics: CmapMetrics) -> Result<()> {
     thread::spawn(move || {
         loop {
             // process requests
