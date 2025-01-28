@@ -10,3 +10,6 @@ anyhow = "1.0.93"
 dashmap = "6.1.0"
 oneshot = "0.1.8"
 rand = "0.8.5"
+tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread", "net", "macros", "fs", "io-util"] } # cargo add tokio --features rt,rt-multi-thread,net,macros,fs,io-util
+tracing = "0.1.41" # cargo add tracing
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] } # cargo add tracing-subscriber --features env-filter
